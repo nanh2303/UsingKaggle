@@ -38,6 +38,7 @@ test_data = datasets.CIFAR10(
 
 training_data, validation_data = random_split(training_data, lengths=(0.9, 0.1))
 
+best_acc = 0
 batch_size = 128  
 EPOCHS = 200
 hidden_size = 512

@@ -1,0 +1,10 @@
+data_name: 'cifar10'
+batch_size: 128
+num_workers: 4
+epochs: 200
+learning_rate: 0.001
+weight_decay: 0.0
+model_name: 'vgg11'
+data_augmentation_type: 'sota'
+activation: 'relu'
+dropout: False

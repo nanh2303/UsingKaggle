@@ -7,3 +7,4 @@ weight_decay: 0.0
 model_name: 'alexnet'
 data_augmentation_type: 'basic'
 activation: 'relu'
+dropout: False

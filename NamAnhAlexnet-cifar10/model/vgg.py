@@ -15,7 +15,8 @@ cfg = {
     'A' : [64,     'M', 128,      'M', 256, 256,           'M', 512, 512,           'M', 512, 512,           'M'],
     'B' : [64, 64, 'M', 128, 128, 'M', 256, 256,           'M', 512, 512,           'M', 512, 512,           'M'],
     'D' : [64, 64, 'M', 128, 128, 'M', 256, 256, 256,      'M', 512, 512, 512,      'M', 512, 512, 512,      'M'],
-    'E' : [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M']
+    'E' : [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+    'F' : [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M']
 }
 
 class VGG(nn.Module):
@@ -30,21 +31,22 @@ class VGG(nn.Module):
             self.activate = nn.Sigmoid(inplace=True)
         elif activation == 'leaky_relu':
             self.activate = nn.LeakyReLU(inplace=True)
-            
+        
         self.feature_extraction = features
-
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.classifier = nn.Sequential(
-            nn.Linear(512, 4096),
+            nn.Linear(512, 1024),
             self.activate,
             nn.Dropout(),
-            nn.Linear(4096, 4096),
+            nn.Linear(1024, 1024),
             self.activate,
             nn.Dropout(),
-            nn.Linear(4096, num_class)
+            nn.Linear(1024, num_class)
         )
 
     def forward(self, x):
         output = self.feature_extraction(x)
+        output = self.avgpool(output)
         output = output.view(output.size()[0], -1)
         output = self.classifier(output)
 
@@ -88,4 +90,7 @@ def vgg16_bn(num_classes=10, activation='relu'):
 
 def vgg19_bn(num_classes=10, activation='relu'):
     return VGG(make_layers(cfg['E'], batch_norm=True, activation=activation), num_class=num_classes, activation=activation)
+
+def vgg23_bn(num_classes=10, activation='relu'):
+    return VGG(make_layers(cfg['F'], batch_norm=True, activation=activation), num_class=num_classes, activation=activation)
 

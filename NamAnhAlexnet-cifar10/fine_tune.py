@@ -16,13 +16,17 @@ from model import *
 current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
 ################################
-#### 0. SETUP CONFIGURATION
+# 0. SETUP CONFIGURATION
 ################################
 best_acc = 0
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--experiment', type=str, help='path to YAML config file')
+parser.add_argument('--pretrain_path', type=str, help='path to pretrain checkpoint')
 args = parser.parse_args()
+
+args.pretrain_path = os.path.join('.', 'checkpoint', '20240330_163653')
+assert os.path.exists(args.pretrain_path), 'Error: Pretrain path does not exist!!!'
 
 yaml_filepath = os.path.join(".", "config", f"{args.experiment}.yaml")
 with open(yaml_filepath, "r") as yamlfile:
@@ -31,8 +35,8 @@ with open(yaml_filepath, "r") as yamlfile:
 
 EPOCHS = cfg['trainer']['epochs']
 
-wandb_name = ''
-wandb_name += 'MODEL'
+wandb_name = 'FINE_TUNE'
+wandb_name += '_MODEL'
 for key, value in sorted(cfg['model'].items()):
     wandb_name += f'_{key[:2]}={value}'
 wandb_name += '_OPT'
@@ -46,55 +50,76 @@ for key, value in sorted(cfg['trainer'].items()):
     wandb_name += f'_{key[:2]}={value}'
     
 logging_name = cfg['dataloader']['data_name'] + '_' + wandb_name  + '_' + current_time
+
 wandb.init(
-    project=cfg['dataloader']['data_name'], 
-    name=wandb_name, 
+    project=cfg['dataloader']['data_name'],
+    name=wandb_name,
 )
 log_dict = {}
 test_dict = {}
 
 ################################
-#### 1. BUILD THE DATASET
+# 1. BUILD THE DATASET
 ################################
-train_dataloader, val_dataloader, test_dataloader, classes = get_dataloader(**cfg['dataloader'])
+train_dataloader, val_dataloader, test_dataloader, classes = get_dataloader(
+    **cfg['dataloader'])
 try:
     num_classes = len(classes)
 except:
     num_classes = classes
 ################################
-#### 2. BUILD THE NEURAL NETWORK
+# 2. BUILD THE NEURAL NETWORK
 ################################
+checkpoint = torch.load(os.path.join(args.pretrain_path, 'ckpt_best.pth'))
 model = get_model(
     **cfg['model'],
-    num_classes=num_classes,
+    num_classes=100,  # Hardcode CIFAR100
 )
+model.load_state_dict(checkpoint['model'])
+model.classifier = nn.Sequential(
+    nn.Linear(512, 512),
+    nn.ReLU(inplace=True),
+    nn.Dropout(),
+    nn.Linear(512, 512),
+    nn.ReLU(inplace=True),
+    nn.Dropout(),
+    nn.Linear(512, num_classes)
+)
+
+if cfg['trainer']['freeze_extraction']:
+    freeze_layer = 'feature_extraction'
+    for name, param in model.named_parameters():
+        if freeze_layer in name:
+            param.requires_grad = False
+        else: param.requires_grad = True
+        
 device = "cuda" if torch.cuda.is_available() else "cpu"
 model.to(device)
 
 ################################
-#### 3.a OPTIMIZING MODEL PARAMETERS
+# 3.a OPTIMIZING MODEL PARAMETERS
 ################################
 loss_fn = nn.CrossEntropyLoss()
 optimizer = optim.SGD(
-    model.parameters(), 
+    model.parameters(),
     **cfg['optimizer']
 )
 
 ################################
-#### 3.b Training 
+# 3.b Training
 ################################
 if __name__ == '__main__':
     for epoch in range(EPOCHS):
         print(f"Epoch {epoch+1}\n-------------------------------")
         train_one_epoch(
-            dataloader=train_dataloader, 
-            model=model, 
-            loss_fn=loss_fn, 
-            optimizer=optimizer, 
-            device=device, 
+            dataloader=train_dataloader,
+            model=model,
+            loss_fn=loss_fn,
+            optimizer=optimizer,
+            device=device,
             log_dict=log_dict
         )
-        
+
         best_acc = validation_one_epoch(
             epoch=epoch, 
             dataloader=val_dataloader, 
@@ -116,11 +141,10 @@ if __name__ == '__main__':
         logging_name=logging_name,
         log_dict=test_dict
     )
-    
     wandb.log(test_dict)
 
     ################################
-    #### 3.c Testing on each class
+    # 3.c Testing on each class
     ################################
     if isinstance(classes, list):
         class_correct = list(0. for _ in range(num_classes))
@@ -135,6 +159,7 @@ if __name__ == '__main__':
                     label = labels[i]
                     class_correct[label] += c[i].item()
                     class_total[label] += 1
-        table_data = [{classes[i]: 100 * class_correct[i]} for i in range(num_classes)]
+        table_data = [{classes[i]: 100 * class_correct[i]}
+                      for i in range(num_classes)]
         table = wandb.Table(data=table_data, columns=["Class", "Accuracy"])
         wandb.log({"Test Accuracy per Class": table})

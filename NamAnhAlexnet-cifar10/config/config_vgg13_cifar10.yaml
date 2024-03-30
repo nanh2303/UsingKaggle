@@ -3,12 +3,9 @@ trainer:
 dataloader:
   data_name: 'cifar10'
   batch_size: 128
-  num_workers: 4
-  data_augmentation: 'sota'
+  data_augmentation: 'minimal'
 model:
-  model_name: 'vgg11'
-  activation: 'relu'
-  dropout: False
+  model_name: 'vgg13_cifar10'
 optimizer:
   lr: 0.001
   momentum: 0.9
